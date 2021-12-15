@@ -1,7 +1,6 @@
 import React, { createContext, useState } from "react";
 import { ethers } from "ethers";
 import { CONFIG } from '../config'
-import contract from './Contract'
 
 
 interface IWeb3Context {
@@ -31,14 +30,12 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
 
     const loginMetamask = () => {
         const ethereum = (window as any).ethereum;
-        console.log('Requesting signer');
-
-
         if (!ethereum) {
             console.error('MetaMask not installed');
             return;
         }
         setEthereum(ethereum)
+
         setProvider(new ethers.providers.Web3Provider(ethereum))
         console.log('provider', provider);
         setSigner(provider?.getSigner())
@@ -84,14 +81,41 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
 
     }
 
-    const switchToEthereum = () => {
+    const switchToEthereum = async () => {
         const chainId = `0x${Number(CONFIG.DEV ? CONFIG.DEV_CHAIN_ID : CONFIG.MAIN_CHAIN_ID).toString(16)}`
         const params = [{ chainId }]
 
-        ethereum?.request({
-            method: 'wallet_switchEthereumChain',
-            params
-        });
+        try {
+            await ethereum?.request({
+                method: 'wallet_switchEthereumChain',
+                params
+            });
+        }
+        // option to add a chain
+        catch (switchError: any) {
+            // This error code indicates that the chain has not been added to MetaMask.
+            if (switchError.code === 4902) {
+                try {
+                    await ethereum.request({
+                        chainId: '0x89',
+                        chainName: 'Polygon',
+                        rpcUrls: [
+                            // 'https://rpc-mainnet.matic.network/',
+                            'https://rpc-mainnet.maticvigil.com/',
+                            'https://rpc-mainnet.matic.quiknode.pro'
+                        ],
+                        nativeCurrency: {
+                            name: 'Matic Token',
+                            symbol: 'MATIC',
+                            decimals: 18
+                        }
+                    });
+                } catch (addError) {
+                    // handle "add" error
+                }
+            }
+            // handle other "switch" errors
+        }
     }
 
 
@@ -102,7 +126,6 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
     }
 
     const metaMaskAvailable = localStorage.getItem('metamaskAvailable');
-    console.log(metaMaskAvailable);
     if (metaMaskAvailable && !loggedIn) loginMetamask();
 
 
