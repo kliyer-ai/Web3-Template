@@ -20,7 +20,7 @@ export const Navbar = () => {
             {address}
           </MenuLink>
           :
-          <button onClick={loginMetamask}>
+          <button onClick={() => loginMetamask(false)}>
             Connect Wallet
           </button>
 

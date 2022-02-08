@@ -19,15 +19,14 @@ const ContractProvider = ({ children }: { children: React.ReactNode }) => {
     const [contractRead, setContractRead] = useState<ethers.Contract>()
     const [svgs, setSvgs] = useState<string[]>()
 
-    const { provider, signer } = useWeb3()
-
-
-
-
+    const { provider, signer, isCorrectChain } = useWeb3()
 
     const getAllSvgs = async () => {
+        console.log('good');
         const lastTokenId = await contractRead?.currentAmount()
         console.log(lastTokenId);
+        console.log('bad');
+
 
         const promises = []
         for (let i = 1; i <= lastTokenId; i++) {
@@ -43,24 +42,31 @@ const ContractProvider = ({ children }: { children: React.ReactNode }) => {
 
 
     useEffect(() => {
-        setContractWrite(new ethers.Contract(
-            CONFIG.CONTRACT_ADDRESS,
-            contract.abi,
-            signer
-        ))
+        console.log(CONFIG.CONTRACT_ADDRESS);
+        console.log(contract.abi);
+
+        if (!isCorrectChain()) return
+
+        if (provider === undefined) return
+
         setContractRead(new ethers.Contract(
             CONFIG.CONTRACT_ADDRESS,
             contract.abi,
             provider
         ))
 
+        if (signer === undefined) return
+
+        setContractWrite(new ethers.Contract(
+            CONFIG.CONTRACT_ADDRESS,
+            contract.abi,
+            signer
+        ))
+
         getAllSvgs()
 
         console.log('prov sig changed');
-
-
-
-    }, [provider, signer])
+    }, [])
 
 
     return (

@@ -15,12 +15,13 @@ export const ViewGenerators = () => {
 
     return (
         <Grid>
-            {svgs?.map((svg, idx) => (
+            {/* {svgs?.map((svg, idx) => (
                 <SvgWrapper key={idx}>
                     <div dangerouslySetInnerHTML={{ __html: svg }}></div>
-                    {/* <button onClick={() => mintCanvas(idx + 1)}>snapshot</button> */}
+                    <button onClick={() => mintCanvas(idx + 1)}>snapshot</button>
                 </SvgWrapper>
-            ))}
+            ))} */}
+            <p>hoi</p>
         </Grid>
 
 

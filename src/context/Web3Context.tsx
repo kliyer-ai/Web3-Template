@@ -1,14 +1,31 @@
-import React, { createContext, useState } from "react";
+import React, { createContext, useEffect, useState } from "react";
+import Web3Modal from "web3modal";
+import WalletConnectProvider from "@walletconnect/web3-provider";
+
+
 import { ethers } from "ethers";
 import { CONFIG } from '../config'
 
+const providerOptions = {
+    walletconnect: {
+        package: WalletConnectProvider, // required
+        options: {
+            infuraId: "INFURA_ID" // required
+        }
+    }
+}
+const web3Modal = new Web3Modal({
+    // network: "mainnet", // optional
+    // cacheProvider: true, // optional
+    providerOptions // required
+});
 
 interface IWeb3Context {
     address: string,
     provider: ethers.providers.Web3Provider | undefined,
     signer: ethers.providers.JsonRpcSigner | undefined,
     chainId: number,
-    loginMetamask: () => void,
+    loginMetamask: (autologin: boolean) => void,
     switchToEthereum: () => void,
     isCorrectChain: () => boolean,
 }
@@ -24,22 +41,39 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
     const [loggedIn, setLoggedIn] = useState(false)
     const [ethereum, setEthereum] = useState<any>()
 
+    const loginMetamask = async (autologin: boolean) => {
+
+        // nothing todo if already logged in
+        // if (loggedIn) return
+
+        console.log(autologin);
 
 
-
-
-    const loginMetamask = () => {
-        const ethereum = (window as any).ethereum;
-        if (!ethereum) {
-            console.error('MetaMask not installed');
-            return;
+        let ethereum;
+        if (autologin) {
+            ethereum = (window as any).ethereum
         }
-        setEthereum(ethereum)
+        else {
+            console.log('hoi');
 
+            try {
+                ethereum = await web3Modal.connect();
+            } catch (error) {
+                // modal closed by user
+                console.log(error);
+            }
+            if (!ethereum) {
+                console.error('MetaMask not installed');
+                return;
+            }
+        }
+
+
+        setEthereum(ethereum)
         setProvider(new ethers.providers.Web3Provider(ethereum))
-        console.log('provider', provider);
+
+
         setSigner(provider?.getSigner())
-        console.log('signer', signer);
 
         ethereum.request({ method: 'eth_requestAccounts' })
             .then((result: string[]) => {
@@ -47,11 +81,22 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
 
                 if (result && result.length > 0) {
                     setAddress(result[0].toLowerCase())
-                    console.log('ethaddress', address);
+                    console.log('ethaddress', result[0].toLowerCase());
+                    localStorage.setItem('walletConnected', 'true');
+
                 } else {
                     console.error('MetaMask login failed');
                 }
             })
+            .catch((error: any) => {
+                if (error.code === 4001) {
+                    // EIP-1193 userRejectedRequest error
+                    console.log('Please connect to MetaMask.');
+                } else {
+                    console.error(error);
+                }
+            })
+
 
         ethereum.request({ method: 'eth_chainId' })
             .then((result: string) => {
@@ -76,13 +121,27 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
             window.location.reload();
         });
 
-        localStorage.setItem('metamaskAvailable', 'true');
+        // Subscribe to provider connection
+        ethereum.on("connect", (info: { chainId: number }) => {
+            console.log(info);
+            console.log('conntected');
+
+        });
+
+        // Subscribe to provider disconnection
+        ethereum.on("disconnect", (error: { code: number; message: string }) => {
+            console.log(error);
+            console.log('disconnected');
+
+        });
+
         setLoggedIn(true)
 
     }
 
     const switchToEthereum = async () => {
-        const chainId = `0x${Number(CONFIG.DEV ? CONFIG.DEV_CHAIN_ID : CONFIG.MAIN_CHAIN_ID).toString(16)}`
+        const chainConfig = CONFIG.DEV ? CONFIG.DEV_CHAIN : CONFIG.MAIN_CHAIN
+        const chainId = `0x${Number(chainConfig.ID).toString(16)}`
         const params = [{ chainId }]
 
         try {
@@ -97,18 +156,22 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
             if (switchError.code === 4902) {
                 try {
                     await ethereum.request({
-                        chainId: '0x89',
-                        chainName: 'Polygon',
-                        rpcUrls: [
-                            // 'https://rpc-mainnet.matic.network/',
-                            'https://rpc-mainnet.maticvigil.com/',
-                            'https://rpc-mainnet.matic.quiknode.pro'
-                        ],
-                        nativeCurrency: {
-                            name: 'Matic Token',
-                            symbol: 'MATIC',
-                            decimals: 18
-                        }
+                        method: 'wallet_addEthereumChain',
+                        params: [{
+                            chainId,
+                            chainName: chainConfig.NAME,
+                            nativeCurrency: {
+                                name: chainConfig.NAME,
+                                symbol: chainConfig.SYMBOL,
+                                decimals: 18
+                            },
+                            rpcUrls: [
+                                chainConfig.RPC_URL
+                            ],
+                            blockExplorerUrls: [
+                                chainConfig.SCAN_LINK
+                            ]
+                        }],
                     });
                 } catch (addError) {
                     // handle "add" error
@@ -121,12 +184,26 @@ const Web3Provider = ({ children }: { children: React.ReactNode }) => {
 
 
     const isCorrectChain = () => {
-        const supposedChainId = CONFIG.DEV ? CONFIG.DEV_CHAIN_ID : CONFIG.MAIN_CHAIN_ID
+        const supposedChainId = CONFIG.DEV ? CONFIG.DEV_CHAIN.ID : CONFIG.MAIN_CHAIN.ID
         return supposedChainId === chainId
     }
 
-    const metaMaskAvailable = localStorage.getItem('metamaskAvailable');
-    if (metaMaskAvailable && !loggedIn) loginMetamask();
+    // const walletConnected = localStorage.getItem('walletConnected');
+    // if (walletConnected && !loggedIn) loginMetamask();
+
+    useEffect(() => {
+        // we only want to autologin the user, if it needs no interaction
+
+        const ethereum = (window as any).ethereum
+        if (!ethereum) return
+        const provider = new ethers.providers.Web3Provider(ethereum)
+
+        provider.listAccounts().then((accounts) => {
+            console.log('check check', accounts);
+            if (accounts.length > 0) loginMetamask(true)
+        })
+
+    }, [])
 
 
     return (

@@ -1,4 +1,4 @@
-export default {
+const contract = {
   "_format": "hh-sol-artifact-1",
   "contractName": "GeneratorNFT",
   "sourceName": "contracts/generator_NFT.sol",
@@ -441,3 +441,5 @@ export default {
   "linkReferences": {},
   "deployedLinkReferences": {}
 }
+
+export default contract
